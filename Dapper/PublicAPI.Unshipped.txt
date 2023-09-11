@@ -1,1 +1,9 @@
-﻿
+﻿Dapper.SqlMapper.InListTableType
+Dapper.SqlMapper.InListTableType.IdColumn.get -> string
+Dapper.SqlMapper.InListTableType.IdColumn.set -> void
+Dapper.SqlMapper.InListTableType.InListTableType() -> void
+Dapper.SqlMapper.InListTableType.TypeName.get -> string
+Dapper.SqlMapper.InListTableType.TypeName.set -> void
+static Dapper.SqlMapper.Settings.InListTVPCount.get -> int
+static Dapper.SqlMapper.Settings.InListTVPCount.set -> void
+static readonly Dapper.SqlMapper.Settings.InListTVPHandlers -> System.Collections.Generic.Dictionary<System.Type, Dapper.SqlMapper.InListTableType>

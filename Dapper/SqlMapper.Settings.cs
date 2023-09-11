@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Threading;
 
@@ -96,6 +97,58 @@ namespace Dapper
             /// operation if there are this many elements or more. Note that this feature requires SQL Server 2016 / compatibility level 130 (or above).
             /// </summary>
             public static int InListStringSplitCount { get; set; } = -1;
+
+            /// <summary>
+            /// If set (non-negative), when performing in-list expansions ("where id in @ids", etc), switch to TVP based
+            /// operation if there are this many elements or more.
+            /// If both InListStringSplitCount and InListTVPCount is set (non-negative), StringSplit will be attempted first and TVP will be attempted next.
+            /// </summary>
+            public static int InListTVPCount { get; set; } = -1;
+
+            /// <summary>
+            /// Types in this dictionary will be handled if InListTVPCount is set and count is reached.
+            /// IdColumn specify the column name of the id column in the table type and TableType specify the table type name.
+            /// You can add, remove or change handlers as you wish.
+            /// 
+            /// Default handlers:
+            /// - Type: byte: IdColumn: "Id", "TypeName": "Dapper_Byte"
+            /// - Type: short: IdColumn: "Id", "TypeName": "Dapper_Int16"
+            /// - Type: int: IdColumn: "Id", "TypeName": "Dapper_Int32"
+            /// - Type: long: IdColumn: "Id", "TypeName": "Dapper_Int64"
+            /// - Type: Guid: IdColumn: "Id", "TypeName": "Dapper_Guid"
+            /// 
+            /// The types are currently not created automatically in Sql Server by Dapper, you must create them themself.
+            /// Example of a table type for int, without a primary key, for full compability,
+            /// as it allows the same argument to be passed more than once, just like ("where id in (1, 1, 1)"):
+            /// CREATE TYPE dbo.Dapper_Int32 AS TABLE (Id int NOT NULL)
+            /// For better performance, but not full compability, it can be created with a primary key:
+            /// CREATE TYPE dbo.Dapper_Int32 AS TABLE (Id int NOT NULL PRIMARY KEY CLUSTERED)
+            /// But note that now, a query like ("where id in (1, 1, 1)") would fail with violation of primary key exception.
+            /// 
+            /// Example of how to create some commonly used types:
+            /// CREATE TYPE dbo.Dapper_Byte AS TABLE (Id tinyint NOT NULL)
+            /// CREATE TYPE dbo.Dapper_Int16 AS TABLE (Id short NOT NULL)
+            /// CREATE TYPE dbo.Dapper_Int32 AS TABLE (Id int NOT NULL)
+            /// CREATE TYPE dbo.Dapper_Int64 AS TABLE (Id bigint NOT NULL)
+            /// CREATE TYPE dbo.Dapper_Guid AS TABLE (Id uniqueidentifier NOT NULL)
+            /// CREATE TYPE dbo.Dapper_String AS TABLE (Id nvarchar(max) NOT NULL)
+            /// DateTime can be stored several ways:
+            /// CREATE TYPE dbo.Dapper_DateTime AS TABLE (Id datetime NOT NULL)
+            /// CREATE TYPE dbo.Dapper_DateTime AS TABLE (Id datetime2 NOT NULL)
+			/// Example of how to create only if not already exist:
+			/// IF TYPE_ID('Dapper_Int32') IS NULL CREATE TYPE dbo.Dapper_Int32 AS TABLE (Id int NOT NULL)
+            /// </summary>
+            public static readonly Dictionary<Type, InListTableType> InListTVPHandlers = DefaultHandlers();
+
+            private static Dictionary<Type, InListTableType> DefaultHandlers()
+                => new()
+                {
+                { typeof(byte), new() { IdColumn = "Id", TypeName = "Dapper_Byte" } },
+                { typeof(short), new() { IdColumn = "Id", TypeName = "Dapper_Int16" } },
+                { typeof(int), new() { IdColumn = "Id", TypeName = "Dapper_Int32" } },
+                { typeof(long), new() { IdColumn = "Id", TypeName = "Dapper_Int64" } },
+                { typeof(Guid), new() { IdColumn = "Id", TypeName = "Dapper_Guid" } },
+                };
 
             /// <summary>
             /// If set, pseudo-positional parameters (i.e. ?foo?) are passed using auto-generated incremental names, i.e. "1", "2", "3"

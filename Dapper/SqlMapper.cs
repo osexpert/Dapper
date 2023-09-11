@@ -2144,7 +2144,15 @@ namespace Dapper
                 bool viaSplit = splitAt >= 0
                     && TryStringSplit(ref list, splitAt, namePrefix, command, byPosition);
 
-                if (list != null && !viaSplit)
+                bool viaTVP = false;
+                if (!viaSplit)
+                {
+                    int tvpAt = SqlMapper.Settings.InListTVPCount;
+                    viaTVP = tvpAt >= 0
+                        && TryTVP(list, tvpAt, namePrefix, command, byPosition);
+                }
+
+                if (list != null && !(viaSplit || viaTVP))
                 {
                     object lastValue = null;
                     foreach (var item in list)
@@ -2209,7 +2217,7 @@ namespace Dapper
                     }
                 }
 
-                if (viaSplit)
+                if (viaSplit || viaTVP)
                 {
                     // already done
                 }
@@ -2336,6 +2344,81 @@ namespace Dapper
             }
             concatenatedParam.Value = val;
             command.Parameters.Add(concatenatedParam);
+            return true;
+        }
+
+        private static bool TryTVP(IEnumerable list, int splitAt, string namePrefix, IDbCommand command, bool byPosition)
+        {
+            if (list == null || splitAt < 0) return false;
+
+            var genericArgs = list.GetType().GetGenericArguments();
+            if (genericArgs.Length == 1)
+            {
+                var genericType = genericArgs[0];
+
+                if (Settings.InListTVPHandlers.TryGetValue(genericType, out var tableType))
+                {
+                    // Fast path for known types
+                    return list switch
+                    {
+                        IEnumerable<int> l => TryTVP2(l, splitAt, namePrefix, command, byPosition, tableType),
+                        IEnumerable<long> l => TryTVP2(l, splitAt, namePrefix, command, byPosition, tableType),
+                        IEnumerable<short> l => TryTVP2(l, splitAt, namePrefix, command, byPosition, tableType),
+                        IEnumerable<byte> l => TryTVP2(l, splitAt, namePrefix, command, byPosition, tableType),
+                        IEnumerable<Guid> l => TryTVP2(l, splitAt, namePrefix, command, byPosition, tableType),
+                        _ => Default()
+                    };
+
+                    // Slow path for unknown types
+                    bool Default()
+                    {
+                        return (bool)typeof(SqlMapper)
+                            .GetMethod(nameof(TryTVP2), BindingFlags.Static | BindingFlags.NonPublic)
+                            .MakeGenericMethod(genericType)
+                            .Invoke(null, new object[] { list, splitAt, namePrefix, command, byPosition, tableType });
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static bool TryTVP2<T>(IEnumerable<T> list, int splitAt, string namePrefix, IDbCommand command, bool byPosition,
+           InListTableType tableType)
+        {
+            if (list is not ICollection<T> typed)
+            {
+                typed = list.ToList();
+            }
+            if (typed.Count < splitAt) return false;
+
+            string varName = null;
+            var regexIncludingUnknown = GetInListRegex(namePrefix, byPosition);
+            var sql = Regex.Replace(command.CommandText, regexIncludingUnknown, match =>
+            {
+                var variableName = match.Groups[1].Value;
+                if (match.Groups[2].Success)
+                {
+                    // looks like an optimize hint; leave it alone!
+                    return match.Value;
+                }
+                else
+                {
+                    varName = variableName;
+                    return $"(select {tableType.IdColumn} from {variableName})";
+                }
+            }, RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.CultureInvariant);
+            if (varName == null) return false; // couldn't resolve the var!
+
+            command.CommandText = sql;
+
+            var dt = new DataTable();
+            dt.Columns.Add(tableType.IdColumn, typeof(T));
+            foreach (var value in typed)
+                dt.Rows.Add(value);
+
+            dt.AsTableValuedParameter(tableType.TypeName).AddParameter(command, varName);
+
             return true;
         }
 
