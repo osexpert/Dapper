@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Threading;
 
@@ -96,6 +97,16 @@ namespace Dapper
             /// operation if there are this many elements or more. Note that this feature requires SQL Server 2016 / compatibility level 130 (or above).
             /// </summary>
             public static int InListStringSplitCount { get; set; } = -1;
+
+            /// <summary>
+            /// TODO
+            /// </summary>
+            public static readonly List<IInListCumstomHandler> InListCustomHandlers = DefaultHandlers();
+
+            private static List<IInListCumstomHandler> DefaultHandlers()
+            {
+                return new List<IInListCumstomHandler>() { new InListStringSplitHandler() };
+            }
 
             /// <summary>
             /// If set, pseudo-positional parameters (i.e. ?foo?) are passed using auto-generated incremental names, i.e. "1", "2", "3"

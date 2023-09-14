@@ -1,1 +1,3 @@
-﻿
+﻿Dapper.SqlMapper.IInListCumstomHandler
+Dapper.SqlMapper.IInListCumstomHandler.TryHandle(System.Data.IDbCommand command, string namePrefix, ref System.Collections.IEnumerable list, bool byPosition) -> bool
+static readonly Dapper.SqlMapper.Settings.InListCustomHandlers -> System.Collections.Generic.List<Dapper.SqlMapper.IInListCumstomHandler>
